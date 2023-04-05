@@ -31,22 +31,97 @@ make_subset <- function(subset_name, start_index, end_index) {
 
 # Dataset ---------------------------------------------------------
 
+original_dir <- path("dogs-vs-cats/train")
+new_base_dir <- path("dogs-vs-cats_small")
+
 if (first_run) {
   # accept rules at http://www.kaggle.com/c/dogs-vs-cats/rules
   system("kaggle competitions download -c dogs-vs-cats")
   unzip("dogs-vs-cats.zip", exdir = "dogs-vs-cats", files = "train.zip")
   unzip("dogs-vs-cats/train.zip", exdir = "dogs-vs-cats")
 
-  original_dir <- path("dogs-vs-cats/train")
-  new_base_dir <- path("dogs-vs-cats_small")
-
   make_subset("train", start_index = 1, end_index = 1000)
   make_subset("validation", start_index = 1001, end_index = 1500)
   make_subset("test", start_index = 1501, end_index = 2500)
 }
 
+train_dataset <- image_dataset_from_directory(
+  new_base_dir / "train",
+  image_size = c(180, 180),
+  batch_size = 32
+)
+
+validation_dataset <- image_dataset_from_directory(
+  new_base_dir / "validation",
+  image_size = c(180, 180),
+  batch_size = 32
+)
+
+test_dataset <- image_dataset_from_directory(
+  new_base_dir / "test",
+  image_size = c(180, 180),
+  batch_size = 32
+)
+
 
 
 # Model -----------------------------------------------------------
 
+inputs <- layer_input(shape = c(180, 180, 3))
+
+outputs <- inputs |>
+  layer_rescaling(1/255) |>
+  layer_conv_2d(filters = 32, kernel_size = 3, activation = "relu") |>
+  layer_max_pooling_2d(pool_size = 2) |>
+  layer_conv_2d(filters = 64, kernel_size = 3, activation = "relu") |>
+  layer_max_pooling_2d(pool_size = 2) |>
+  layer_conv_2d(filters = 128, kernel_size = 3, activation = "relu") |>
+  layer_max_pooling_2d(pool_size = 2) |>
+  layer_conv_2d(filters = 256, kernel_size = 3, activation = "relu") |>
+  layer_max_pooling_2d(pool_size = 2) |>
+  layer_conv_2d(filters = 256, kernel_size = 3, activation = "relu") |>
+  layer_max_pooling_2d(pool_size = 2) |>
+  layer_flatten() |>
+  layer_dense(1, activation = "sigmoid")
+
+model <- keras_model(inputs, outputs)
+
+model |>
+  compile(
+    loss = "binary_crossentropy",
+    optimizer = "rmsprop",
+    metrics = "accuracy"
+  )
+
+
+
+# Callbacks -------------------------------------------------------
+
+callbacks <- list(
+  callback_model_checkpoint(
+    filepath = "convnet_from_skratch.keras",
+    save_best_only = TRUE,
+    monitor = "val_loss"
+  )
+)
+
+
+
+# Fit -------------------------------------------------------------
+
+history <- model |>
+  fit(
+    train_dataset,
+    epochs = 30,
+    validation_data = validation_dataset,
+    callbacks = callbacks
+  )
+
+
+
+# Evaluate --------------------------------------------------------
+
+test_model <- load_model_tf("convnet_from_skratch.keras")
+result <- evaluate(test_model, test_dataset)
+cat(sprintf("Test accuracy: %.3f\n", result[["accuracy"]]))
 
