@@ -99,7 +99,7 @@ model |>
 
 callbacks <- list(
   callback_model_checkpoint(
-    filepath = "convnet_from_skratch.keras",
+    filepath = "convnet_from_skratch_with.keras",
     save_best_only = TRUE,
     monitor = "val_loss"
   )
@@ -112,7 +112,7 @@ callbacks <- list(
 history <- model |>
   fit(
     train_dataset,
-    epochs = 30,
+    epochs = 100,
     validation_data = validation_dataset,
     callbacks = callbacks
   )
@@ -125,3 +125,62 @@ test_model <- load_model_tf("convnet_from_skratch.keras")
 result <- evaluate(test_model, test_dataset)
 cat(sprintf("Test accuracy: %.3f\n", result[["accuracy"]]))
 
+
+
+# Data augmentation -----------------------------------------------
+data_augmentation <- keras_model_sequential() |>
+  layer_random_flip("horizontal") |>
+  layer_random_rotation(0.1) |>
+  layer_random_zoom(0.2)
+
+
+outputs_aumented <- inputs |>
+  data_augmentation() |>
+  layer_rescaling(1/255) |>
+  layer_conv_2d(filters = 32, kernel_size = 3, activation = "relu") |>
+  layer_max_pooling_2d(pool_size = 2) |>
+  layer_conv_2d(filters = 64, kernel_size = 3, activation = "relu") |>
+  layer_max_pooling_2d(pool_size = 2) |>
+  layer_conv_2d(filters = 128, kernel_size = 3, activation = "relu") |>
+  layer_max_pooling_2d(pool_size = 2) |>
+  layer_conv_2d(filters = 256, kernel_size = 3, activation = "relu") |>
+  layer_max_pooling_2d(pool_size = 2) |>
+  layer_conv_2d(filters = 256, kernel_size = 3, activation = "relu") |>
+  layer_max_pooling_2d(pool_size = 2) |>
+  layer_flatten() |>
+  layer_dropout(0.5) |>
+  layer_dense(1, activation = "sigmoid")
+
+model_augmented <- keras_model(inputs, outputs_aumented)
+
+model_augmented |>
+  compile(
+    loss = "binary_crossentropy",
+    optimizer = "rmsprop",
+    metrics = "accuracy"
+  )
+
+callbacks_augmented <- list(
+  callback_model_checkpoint(
+    filepath = "convnet_from_skratch_with_augmentation.keras",
+    save_best_only = TRUE,
+    monitor = "val_loss"
+  )
+)
+
+
+history <- model_augmented |>
+  fit(
+    train_dataset,
+    epochs = 100,
+    validation_data = validation_dataset,
+    callbacks = callbacks_augmented
+  )
+
+
+
+# Evaluate --------------------------------------------------------
+
+test_model_augmented <- load_model_tf("convnet_from_skratch_with_augmentation.keras")
+result <- evaluate(test_model_augmented, test_dataset)
+cat(sprintf("Augmented test accuracy: %.3f\n", result[["accuracy"]]))
