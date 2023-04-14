@@ -3,11 +3,9 @@ install.packages(
   dependencies = TRUE
 )
 
-library(reticulate)
-virtualenv_create("r-reticulate", python = install_python())
 
-library(keras)
-install_keras(envname = "r-reticulate")
+reticulate::install_miniconda()
+keras::install_keras("conda", tensorflow = "gpu")
 
 library(fs)
 dir_create("~/.kaggle")
